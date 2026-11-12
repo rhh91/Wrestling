@@ -237,6 +237,8 @@ button.cal:hover{border-color:var(--mute)}
 /* sheet */
 #sheet{position:fixed;inset:0;z-index:50;display:none}
 #sheet.on{display:block}
+textarea.autogrow{resize:none;overflow:hidden;min-height:38px;max-height:420px;font-family:inherit;font-size:inherit;line-height:1.35;white-space:pre-wrap;box-sizing:border-box}
+.msg,.coolbox,textarea,input[type=text]{overflow-wrap:anywhere;word-break:break-word}
 #sheet.ctr .card{top:50%;bottom:auto;left:50%;transform:translate(-50%,-50%);width:min(440px,92%);max-height:86%;border:1px solid var(--accent);border-radius:10px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
 #sheet.ctr .back{background:rgba(0,0,0,.72)}
 .back{position:absolute;inset:0;background:rgba(0,0,0,.6)}
@@ -13083,7 +13085,7 @@ var SECTIONS=[
  {id:'shows',n:'Shows',pages:[['book','Book',0],['cal','Calendar',1],['results','Results',0]]},
  {id:'talent',n:'Talent',pages:[['roster','Roster',0],['workers','Workers',0],['groups','Groups',0],['market','Market',0],['outbiz','Out of the business',1],['rank','Rankings',1],['dev','Developmental',1],['dojo','Dojo',1],['locker','Locker room',1]]},
  {id:'creative',n:'Creative',pages:[['titles','Titles',0],['stories','Stories',1],['booker','Booker',0]]},
- {id:'biz',n:'Business',pages:[['money','Money',0],['upg','Upgrades',0],['rivals','Rivals',0],['dealhub','Deals',0],['office','Office',0],['prodpg','Production',1],['company','Company',1]]},
+ {id:'biz',n:'Business',pages:[['money','Money',0],['upg','Upgrades',0],['rivals','Rivals',0],['dealhub','Deals',0],['prodpg','Production',1],['company','Company',1]]},
  {id:'world',n:'World',pages:[['records','Records',1],['regions','Regions',1],['indie','Indie scene',1],['settings','Settings',0,1],['data','Data',0,1]]}
 ];
 var TABS=[];SECTIONS.forEach(function(s){s.pages.forEach(function(p){TABS.push([p[0],p[1]])})});
@@ -13128,7 +13130,7 @@ function injTag(p){return p.injury?'<span class="pill bad">out '+p.injury+'w'+(p
 function fatTag(p){var l=fatigueLabel(p.fatigue);return p.fatigue>=20?'<span class="pill '+(p.fatigue>=40?'bad':'warn')+'">'+l+' '+Math.round(p.fatigue)+'</span>':''}
 
 /* ---------- sheets ---------- */
-function openSheet(html,kind,id){var s=$('sheet');s.innerHTML='<div class="back" data-a="closeSheet"></div><div class="card" role="dialog" aria-modal="true">'+html+'</div>';s.classList.remove('ctr');s.classList.add('on');ui.sheet=kind?{k:kind,id:id}:{k:'x'};if(typeof afSheet==='function')afSheet()}
+function openSheet(html,kind,id){var s=$('sheet');s.innerHTML='<div class="back" data-a="closeSheet"></div><div class="card" role="dialog" aria-modal="true">'+html+'</div>';s.classList.remove('ctr');s.classList.add('on');setTimeout(growAll,0);ui.sheet=kind?{k:kind,id:id}:{k:'x'};if(typeof afSheet==='function')afSheet()}
 function closeSheet(){var s=$('sheet');s.classList.remove('on');s.innerHTML='';ui.sheet=null;ui.pickCb=null;render()}
 function sheetHead(title,sub){return '<div class="row between"><div><h3>'+esc(title)+'</h3>'+(sub?'<div class="mute small">'+sub+'</div>':'')+'</div>'+btn('closeSheet','Close','','sm')+'</div>'}
 function refreshSheet(){
@@ -13164,6 +13166,7 @@ function render(){
   var keepFocus=document.activeElement&&document.activeElement.dataset?document.activeElement.dataset.keep:null;
   $('app').innerHTML=f();
   if(typeof autoFold==='function')autoFold();
+  growAll();
   if(ui.tab==='data'){var ta=$('exp');if(ta&&ui.jsonOut)ta.value=ui.jsonOut;var tc=$('csvo');if(tc&&ui.csvOut)tc.value=ui.csvOut}
   if(keepFocus){var el=document.querySelector('[data-keep="'+keepFocus+'"]');if(el){el.focus();try{var l=el.value.length;el.setSelectionRange(l,l)}catch(e){}}}
 }
@@ -13864,7 +13867,7 @@ A.more=function(d){ui.more=ui.more===d.id?'':d.id;render()};
 /* ---------- AUTO FOLD: every long screen, sheet section and booked segment can collapse ----------
    Runs after each render. It only moves existing nodes, so every button keeps working.
    Open and closed is remembered per screen in ui.afold. */
-var AF_OPEN={dev:1,booker:1,inbox:1,home:1};          /* screens whose panels all start open */
+var AF_OPEN={booker:1,inbox:1,home:1};          /* screens whose panels all start open */
 var AF_SHEETS={p:1,res:1,t:1};
 function afLoad(){if(ui.afold)return;ui.afold={};try{var j=JSON.parse(localStorage.getItem('b2b-afold')||'{}');if(j&&typeof j==='object')ui.afold=j}catch(e){}}
 function afSave(){try{var k=Object.keys(ui.afold);if(k.length>500){var o={};k.slice(-400).forEach(function(x){o[x]=ui.afold[x]});ui.afold=o}localStorage.setItem('b2b-afold',JSON.stringify(ui.afold))}catch(e){}}
@@ -13880,14 +13883,17 @@ function afWrap(from,stop){           /* move siblings from `from` up to (not in
   var n=from;while(n&&n!==stop){var nx=n.nextSibling;box.appendChild(n);n=nx}
   return box;
 }
+function afRow(p){var f=p.firstElementChild;return f&&f.tagName==='DIV'&&f.classList.contains('row')&&f.firstElementChild&&f.firstElementChild.tagName==='H3'?f:null}
 function afPanels(app){
   var list=[].filter.call(app.querySelectorAll('.panel'),function(p){
-    return !p.parentElement.closest('.panel,.sl')&&!p.classList.contains('fold')&&!p.classList.contains('hbpage')&&p.firstElementChild&&p.firstElementChild.tagName==='H3'&&p.children.length>1;
+    var rw=afRow(p);
+    return !p.parentElement.closest('.panel,.sl')&&!p.classList.contains('fold')&&!p.classList.contains('hbpage')&&!p.hasAttribute('data-noaf')&&p.firstElementChild&&(p.firstElementChild.tagName==='H3'||rw)&&(p.children.length>1||(rw&&rw.children.length>1));
   });
   if(list.length<2)return 0;
   var mode=AF_OPEN[ui.tab]?'open':'first';
   list.forEach(function(p,i){
-    var h=p.firstElementChild,key=afKey(ui.tab,h.textContent),open=afState(key,mode==='open'||i===0);
+    var rw=afRow(p),h=rw?rw.firstElementChild:p.firstElementChild,key=afKey(ui.tab,h.textContent),open=afState(key,mode==='open');
+    if(rw){rw.removeChild(h);var bx=afWrap(rw,null),hd2=afHead(key,open,'',null);hd2.insertBefore(h,hd2.firstChild);p.appendChild(hd2);p.appendChild(bx);bx.hidden=!open;p.classList.add('af');return}
     var box=afWrap(h.nextSibling,null),hd=afHead(key,open,'',null);
     p.insertBefore(hd,h);hd.insertBefore(h,hd.firstChild);p.appendChild(box);box.hidden=!open;p.classList.add('af');
   });
@@ -15459,6 +15465,7 @@ VIEWS.upg=function(){
   var h=pageHead('Upgrades','Everything you can level up, in one place',coSwitch())+'<div class="panel"><div class="row between"><h3>All upgrades</h3><span class="tag">'+money(Math.round(tot))+' a week upkeep</span>'+(c.kind==='child'?' <span class="tag">Paid from '+esc(me().short)+' cash</span>':'')+'</div><div class="scroll-x"><table class="tbl"><tr><th>Upgrade</th><th class="r">Level</th><th class="r">Upkeep a week</th></tr>'+
     rows.map(function(r){return '<tr><td>'+esc(r[1])+' <span class="mute small">'+r[0]+'</span></td><td class="r">'+r[2]+' / '+r[3]+'</td><td class="r">'+(r[4]?money(Math.round(r[4])):'None')+'</td></tr>'}).join('')+'</table></div>'+
     '<div class="mute small" style="margin-top:6px">Production level for TV deals: '+prodTier(c)+' of 2. It comes from crew levels (6 total = 1, 12 total = 2, you have '+prodCrewSum(c)+') or the venue and set upgrade.</div></div>'+maxAllPanel()+tabBar('upg',tabs,t);
+  if(c.kind==='child'&&t==='fac')h+=devAcademy(c);
   if(t==='crew')h+='<div class="panel"><h3>Crews</h3><div class="mute small">Hired by the month. Each crew has 5 levels.</div>'+crewPanel(c)+'</div>';
   else if(t==='staff')h+=legalPanel(c)+medPanel(c)+asstPanel(c);
   else if(t==='coach')h+=coachPanel(c);
@@ -15504,7 +15511,7 @@ function jointBlock(c,e){
 function coolBox(p,mid){
   if(!p||isYou(db,p))return '';
   var on=coolOn(db,p);
-  return '<div class="coolbox" style="margin-top:8px"><label class="label" for="cool-'+mid+'">Your reply'+(on?' · <span class="pill face">Be Cool until '+fmtDate(p.be_cool_until)+'</span>':'')+'</label><div class="row"><input type="text" id="cool-'+mid+'" maxlength="140" placeholder="Say something to '+esc(p.name)+'" data-enter="coolSay" data-pid="'+p.id+'" data-mid="'+mid+'" style="flex:1;min-width:0">'+btn('coolSay','Send','data-pid="'+p.id+'" data-mid="'+mid+'"','sm')+'</div></div>';
+  return '<div class="coolbox" style="margin-top:8px"><label class="label" for="cool-'+mid+'">Your reply'+(on?' · <span class="pill face">Be Cool until '+fmtDate(p.be_cool_until)+'</span>':'')+'</label><div class="row"><textarea rows="1" class="autogrow" id="cool-'+mid+'" maxlength="300" placeholder="Say something to '+esc(p.name)+'" data-enter="coolSay" data-pid="'+p.id+'" data-mid="'+mid+'" style="flex:1;min-width:0"></textarea>'+btn('coolSay','Send','data-pid="'+p.id+'" data-mid="'+mid+'"','sm')+'</div></div>';
 }
 A.coolSay=function(d){
   var p=W(db,d.pid),el=document.getElementById('cool-'+d.mid);if(!p||!el)return;
@@ -15527,22 +15534,23 @@ function dirPanel(c){
   var rw=function(x){return '<div class="msg" style="margin:4px 0'+(x.fin?';opacity:.7':'')+'"><div class="row between"><span>'+(x.fin?(x.missed?'✗ ':'✓ '):'☐ ')+'<b>'+({gate:'Title gate',match:'Match',ppv:'PPV build',ratio:'Card ratio',promise:'Promise'}[x.kind]||x.kind)+'</b></span>'+(x.fin?'':btn('dirCancel','Cancel','data-id="'+x.id+'"','sm'))+'</div><div>'+esc(dirText(db,c,x))+'</div><div class="mute small">'+esc(dirProg(db,c,x))+'</div></div>'};
   return '<div class="panel"><h3>Active Booking Directives</h3>'+(act.length?act.map(rw).join(''):'<div class="mute small">None yet. Tell the booker what you want.</div>')+(fin.length?'<div class="label" style="margin-top:8px">Finished</div>'+fin.map(rw).join(''):'')+'</div>';
 }
-VIEWS.office=function(){
+function officeBody(){
   var c=me(),tabs=[['bk','Head Booker'],['gm','General Manager']],tab=tabVal('office',tabs);
-  var h=pageHead('Office','Your front office. The booker runs the creative side. The GM runs the money.')+tabBar('office',tabs,tab);
-  h+='<div class="panel"><h3>'+(tab==='bk'?'Head Booker':'General Manager')+'</h3><div class="mute small">'+(tab==='bk'?'Match cards, PPV builds, card ratios, feud pacing and title gates.':'Contracts, budget, TV slots and morale.')+'</div><div style="margin:8px 0;max-height:46vh;overflow:auto">'+ofChatHTML(c,tab)+'</div><div class="row"><input type="text" id="of-in" maxlength="400" placeholder="'+(tab==='bk'?'e.g. Keep Mike Ace off the World title until 2028':'e.g. How is the budget?')+'" data-enter="ofSend" data-role="'+tab+'" data-keep="of-in" style="flex:1;min-width:0">'+btn('ofSend','Send','data-role="'+tab+'"')+'</div></div>';
+  var h='<div class="label" style="margin:12px 0 4px">Front Office</div>'+tabBar('office',tabs,tab);
+  h+='<div class="panel"><h3>'+(tab==='bk'?'Head Booker':'General Manager')+'</h3><div class="mute small">'+(tab==='bk'?'Match cards, PPV builds, card ratios, feud pacing and title gates.':'Contracts, budget, TV slots and morale.')+'</div><div style="margin:8px 0;max-height:46vh;overflow:auto">'+ofChatHTML(c,tab)+'</div><div class="row"><textarea rows="1" class="autogrow" id="of-in" maxlength="600" placeholder="'+(tab==='bk'?'e.g. Keep Mike Ace off the World title until 2028':'e.g. How is the budget?')+'" data-enter="ofSend" data-role="'+tab+'" data-keep="of-in" style="flex:1;min-width:0"></textarea>'+btn('ofSend','Send','data-role="'+tab+'"')+'</div></div>';
   h+=grudgePanel(c,tab)+warPanel(c,tab);
   h+=dirPanel(c);
   return h;
-};
+}
+VIEWS.office=function(){ui.tab='home';return VIEWS.home()};
 A.ofSend=function(d){
   var el=document.getElementById('of-in');if(!el)return;var t=el.value;if(!String(t).trim())return;
-  var c=me();pushUndo();var mo=ofSend(db,c,d.role,t);if(mo&&orKey()&&!ui.orBusy){ui.orBusy=1;var o=mo.o,fb=o.t;o.t='...';orAsk(db,c,mo.role,t).then(function(r){var ex='';if(r.command){OF_MISS=0;ex=(mo.role==='bk'?ofBook:ofOffice)(db,c,r.command);if(OF_MISS)ex='';OF_MISS=0}o.t=((r.reply||fb)+(ex?'\n['+ex+']':'')).slice(0,700)}).catch(function(e){o.t=fb+'\n(AI unavailable: '+e.message+')'}).then(function(){ui.orBusy=0;save();render()})}save();render();
+  if(irlOn(t))return irlSend(d,t,el);var c=me();pushUndo();var mo=ofSend(db,c,d.role,t);if(mo&&orKey()&&!ui.orBusy){ui.orBusy=1;var o=mo.o,fb=o.t;o.t='...';orAsk(db,c,mo.role,t).then(function(r){var ex='';if(r.command){OF_MISS=0;ex=(mo.role==='bk'?ofBook:ofOffice)(db,c,r.command);if(OF_MISS)ex='';OF_MISS=0}o.t=((r.reply||fb)+(ex?'\n['+ex+']':'')).slice(0,700)}).catch(function(e){o.t=fb+'\n(AI unavailable: '+e.message+')'}).then(function(){ui.orBusy=0;save();render()})}save();render();
   var e2=document.getElementById('of-in');if(e2){e2.value='';try{e2.focus()}catch(x){}}
 };
 A.dirCancel=function(d){var c=me();pushUndo();c.dirs=dirsOf(c).filter(function(x){return x.id!==d.id});save();toast('Directive cancelled.');render()};
 document.addEventListener('keydown',function(e){
-  if(e.key!=='Enter')return;var t=e.target;
+  if(e.key!=='Enter'||e.shiftKey)return;var t=e.target;
   if(t&&t.dataset&&t.dataset.enter){var f=A[t.dataset.enter];if(f){e.preventDefault();f(t.dataset,t,e)}}
 });
 /* ===== V142b: OpenRouter for Booker/GM chats ===== */
@@ -15559,18 +15567,18 @@ function orCtx(d,c){
 function orSystem(role,d,c){
   var who=role==='bk'?'the Head Booker of a pro wrestling promotion. You own creative: match cards, PPV builds, card ratios, feud pacing, title gates.':'the General Manager of a pro wrestling promotion. You own contracts, budget, TV network slots and roster morale.';
   var cmds=role==='bk'?'"<Name> vs <Name> on TV once", "<Name> vs <Name> feud for 3 shows", "<Name> vs <Name> in a cage at the next PPV", "Keep <Name> off the <Title> until 2028", "70% wrestling", "clear all directives"':'"renew <Name>", "contract for <Name>", "how is the budget", "TV status", "morale"';
-  return 'You are '+who+' Reply in character, casual, 1 to 3 short sentences, no markdown. The owner is talking to you.\nWhen the owner wants something you can set up, also return a "command": ONE plain sentence the game parser understands, using exact roster and title names from the context. Examples: '+cmds+'. If nothing to set up, command is "".\nIf the request belongs to the other department, say you will pass it on and leave command "".\nReturn ONLY JSON: {"reply":"...","command":"..."}\n'+orCtx(d,c);
+  return 'You are '+who+' Reply in character, casual, 1 to 3 short sentences, no markdown. The owner is talking to you. This is real competition: never break the fourth wall and never say staged, worked or scripted.\nWhen the owner wants something you can set up, also return a "command": ONE plain sentence the game parser understands, using exact roster and title names from the context. Examples: '+cmds+'. If nothing to set up, command is "".\nIf the request belongs to the other department, say you will pass it on and leave command "".\nReturn ONLY JSON: {"reply":"...","command":"..."}\n'+orCtx(d,c);
 }
 function orParse(txt){
   var s=String(txt||''),i=s.indexOf('{'),j=s.lastIndexOf('}');
-  if(i>=0&&j>i){try{var o=JSON.parse(s.slice(i,j+1));return {reply:String(o.reply||'').slice(0,600),command:String(o.command||'').slice(0,300)}}catch(e){}}
-  return {reply:s.replace(/[\r\n]+/g,' ').slice(0,600),command:''};
+  if(i>=0&&j>i){try{var o=JSON.parse(s.slice(i,j+1));return {reply:String(o.reply||'').slice(0,1500),command:String(o.command||'').slice(0,300),raw:o}}catch(e){}}
+  return {reply:s.replace(/\s*[\r\n]+\s*/g,' ').slice(0,1500),command:''};
 }
-function orAsk(d,c,role,text,sys){
+function orAsk(d,c,role,text,sys,mt,temp){
   var k=orKey();if(!k)return Promise.reject(new Error('No API key'));
   var msgs=[{role:'system',content:sys||orSystem(role,d,c)},{role:'user',content:String(text).slice(0,500)}];
   var ctl=typeof AbortController!=='undefined'?new AbortController():null,tm=setTimeout(function(){if(ctl)ctl.abort()},25000);
-  return fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',signal:ctl?ctl.signal:undefined,headers:{'Authorization':'Bearer '+k,'Content-Type':'application/json','X-Title':'Bell to Bell'},body:JSON.stringify({model:orModel(),messages:msgs,temperature:0.7,max_tokens:350})})
+  return fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',signal:ctl?ctl.signal:undefined,headers:{'Authorization':'Bearer '+k,'Content-Type':'application/json','X-Title':'Bell to Bell'},body:JSON.stringify({model:orModel(),messages:msgs,temperature:temp===undefined?0.7:temp,max_tokens:mt||350})})
   .then(function(r){clearTimeout(tm);if(!r.ok)return r.text().then(function(t){throw new Error('HTTP '+r.status+(r.status===401?' (bad key)':''))});return r.json()})
   .then(function(j){var m=j&&j.choices&&j.choices[0]&&j.choices[0].message;if(!m||!m.content)throw new Error('empty reply');return orParse(m.content)})
   .catch(function(e){clearTimeout(tm);throw new Error(String(e&&e.message||e).split(k).join('***').slice(0,120))});
@@ -15645,10 +15653,10 @@ A.teamEvo=function(d){
 };
 A.teamEvoPick=function(d){var c=C(db,d.co),s=c.stables.filter(function(x){return x.id===d.id})[0];if(!s)return;pushUndo();var r=teamEvoApply(db,c,s,d.k);save();closeSheet();toast(r.msg);render()};
 /* notes */
-function noteField(s,i){return '<label class="f"><span class="label">Tactical Match Notes (optional)</span><input type="text" maxlength="200" data-chg="segNote" data-i="'+i+'" value="'+esc(s.note||'')+'" placeholder="e.g. Worker A targets the knee early, finish via submission"></label><div class="mute small">The recap quotes your plan. Ratings and winners still come from stats and finishers.</div>'}
-A.segNote=function(d,v){var s=cardOf(theSpec()).segs[+d.i];if(s){s.note=String(v).slice(0,200);save();render()}};
-function cardNoteField(spec,card){var ev=spec.kind==='event';return '<label class="f"><span class="label">'+(ev?'PPV Event Directive':'Show Directive / Pacing Notes')+'</span><input type="text" maxlength="200" data-chg="cardNote" value="'+esc(card.note||'')+'" placeholder="'+(ev?'e.g. Every championship match must feel decisive and grueling':'e.g. Keep opening bouts fast, build ringside tension in the main event')+'"></label>'}
-A.cardNote=function(d,v){var s=theSpec();if(s){cardOf(s).note=String(v).slice(0,200);save();render()}};
+function noteField(s,i){return '<label class="f"><span class="label">Tactical Match Notes (optional)</span><textarea rows="1" class="autogrow" maxlength="300" data-chg="segNote" data-i="'+i+'" placeholder="e.g. Worker A targets the knee early, finish via submission">'+esc(s.note||'')+'</textarea></label><div class="mute small">The recap quotes your plan. Ratings and winners still come from stats and finishers.</div>'}
+A.segNote=function(d,v){var s=cardOf(theSpec()).segs[+d.i];if(s){s.note=String(v).slice(0,300);save();render()}};
+function cardNoteField(spec,card){var ev=spec.kind==='event';return '<label class="f"><span class="label">'+(ev?'PPV Event Directive':'Show Directive / Pacing Notes')+'</span><textarea rows="1" class="autogrow" maxlength="300" data-chg="cardNote" placeholder="'+(ev?'e.g. Every championship match must feel decisive and grueling':'e.g. Keep opening bouts fast, build ringside tension in the main event')+'">'+esc(card.note||'')+'</textarea></label>'}
+A.cardNote=function(d,v){var s=theSpec();if(s){cardOf(s).note=String(v).slice(0,300);save();render()}};
 /* grudge pitch + negotiations in the Office */
 function grudgePanel(c,tab){
   if(tab!=='bk')return '';
@@ -15663,6 +15671,276 @@ function warPanel(c,tab){
   var ms=db.inbox.filter(function(m){return m.type==='war'&&m.status==='open'});
   return '<div class="panel"><h3>Open negotiations</h3>'+(ms.length?ms.map(function(m){var p=W(db,m.person);return '<div class="msg" style="margin:4px 0"><b>'+esc(m.subject)+'</b><div class="mute small">'+(p?esc(p.name)+' · '+termWord(p.contract?p.contract.weeks:0)+' left':'')+'</div>'+warHTML(m,p)+'</div>'}).join(''):'<div class="mute small">No bidding wars right now.</div>')+'</div>';
 }
+
+/* ===== V144: auto-grow text boxes, Dev Academy hub, IRL / OOC assistant ===== */
+function growOne(t){if(!t||t.tagName!=='TEXTAREA'||!t.classList.contains('autogrow'))return;t.style.height='auto';t.style.height=Math.min(t.scrollHeight+2,420)+'px'}
+function growAll(){var l=document.querySelectorAll('textarea.autogrow');for(var i=0;i<l.length;i++)growOne(l[i])}
+document.addEventListener('input',function(e){growOne(e.target)});
+window.addEventListener('resize',function(){growAll()});
+/* ---- Dev Academy: one place for a developmental brand's four systems ---- */
+function devAcademy(c){
+  var par=C(db,c.owner)||me(),tr=PROJECTS.filter(function(x){return x.id==='training'})[0],sc=PROJECTS.filter(function(x){return x.id==='dev'})[0];
+  var tl=projLevel(c,'training'),sl=projLevel(c,'dev'),ml=c.medLv||0,cc=(c.coaches||[]).length,cap=coachCap(c);
+  var row=function(name,L,max,eff,nxt,btns){return '<div class="msg" style="margin:6px 0"><div class="row between"><b>'+name+'</b><span class="pill">Level '+L+' of '+max+'</span></div><div class="small">'+eff+'</div><div class="mute small">'+nxt+'</div><div class="row" style="margin-top:6px;flex-wrap:wrap">'+btns+'</div></div>'};
+  var proj=function(P,L,id){return row(P.name,L,5,L?esc(P.desc[L-1]):'Not built yet.',L<5?'Next: '+money(P.cost[L])+' to build, then '+money(P.upkeep[L])+' a week.':'Fully built. '+money(P.upkeep[4])+' a week.',btn('devBuy','Level up'+(L<5?' ('+money(P.cost[L])+')':''),'data-co="'+c.id+'" data-id="'+id+'"','primary',L>=5))};
+  var up=upkeepWeek(c);
+  return '<div class="panel"><h3>Developmental Academy</h3><div class="mute small">Everything that grows '+esc(c.name)+'\'s prospects. Purchases are paid by '+esc(par.name)+' ('+money(par.cash)+' cash). Training growth applies to the dojo and the signed roster.</div>'+
+  proj(tr,tl,'training')+
+  row('Coaching staff',cc,cap,cc?'Coaches train the roster every week. Better coaches mean faster growth.':'No coaches yet. Hire some or nobody improves.',cc+' of '+cap+' coach slots used, '+money(coachCost(c))+' a week.',btn('devGo','Open Coaches','data-t="coach"','primary'))+
+  row('Medical department',ml,5,ml?esc(MED_PERKS[ml]):'No doctors.',ml<5?'Next: '+money(Math.round(medMonth(c,ml+1)))+' a month.':'Top level.',btn('medLv','Raise','data-co="'+c.id+'" data-d="1"','primary',ml>=5)+btn('medLv','Lower','data-co="'+c.id+'" data-d="-1"','sm',ml<=0))+
+  proj(sc,sl,'dev')+
+  '<div class="mute small" style="margin-top:6px">Total upkeep across everything on this brand: '+money(Math.round(up))+' a week.</div></div>';
+}
+A.devBuy=function(d){var c=C(db,d.co);if(!c)return;var par=C(db,c.owner)||me();pushUndo();var r=act2(function(){return buyProject(db,c,d.id,par.id)});after(r.msg)};
+A.devGo=function(d){ui.tab2=ui.tab2||{};ui.tab2.upg=d.t;render()};
+/* ---- IRL / OOC assistant ---- */
+function irlOn(t){return /\b(irl|ooc)\b/i.test(String(t))}
+var IRL_STOP={which:1,what:1,when:1,where:1,were:1,with:1,that:1,this:1,from:1,have:1,there:1,their:1,about:1,wrestled:1,wrestler:1,wrestlers:1,notable:1,free:1,agent:1,agents:1,been:1,does:1,tell:1,list:1,show:1,anyone:1,players:1,player:1};
+function irlCtx(d,c,q){
+  var words=String(q).toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(function(w){return w.length>2&&!IRL_STOP[w]&&w!=='irl'&&w!=='ooc'});
+  var fa=freeAgents(d),hit=fa.filter(function(p){var hay=(p.name+' '+(p.gimmick||'')+' '+(p.real||'')+' '+(p.style||'')+' '+(p.brand||'')+' '+(p.traits||[]).join(' ')).toLowerCase();return words.some(function(w){return hay.indexOf(w)>=0})});
+  var pool=(hit.length?hit:fa).slice().sort(function(a,b){return b.pop-a.pop}).slice(0,40);
+  var sty=function(p){return (STYLE_BY[p.style]||{n:p.style}).n};
+  return 'SAVE DATA. Date '+d.date+'. '+d.people.length+' people in the database, '+fa.length+' free agents. '+(hit.length?hit.length+' free agents match words in the question. Showing the top '+pool.length+' by popularity:':'No free agent matches the question words. Showing the top '+pool.length+' free agents by popularity:')+'\n'+pool.map(function(p){return p.name+(p.real?' (real name '+p.real+')':'')+', age '+p.age+', '+(p.sex==='F'?'F':'M')+', '+sty(p)+', pop '+Math.round(p.pop)+', potential '+Math.round(p.pot)+(p.gimmick?', gimmick '+p.gimmick:'')+((p.traits||[]).length?', traits '+p.traits.join('/'):'')}).join('\n');
+}
+function irlSystem(d,c,q){
+  return 'You are NOT a character now. Drop the booker and GM persona completely. The player flagged this message IRL or OOC, so answer plainly, in your own voice, as an out-of-character game assistant and professional wrestling historian.\nFor real-world wrestling history (promotions, careers, title reigns, who worked where), use your own knowledge and say when you are not sure. For anything about this game, use only the SAVE DATA below and say when it does not tell you. Many names in the save database are fictional; do not claim a fictional person has real history. Do not invent facts.\nBe direct and compact. Plain text, no JSON needed beyond this wrapper. Return ONLY JSON {"reply":"...","command":""} with command always empty.\n'+irlCtx(d,c,q);
+}
+function irlSend(d,t,el){
+  var c=me(),role=d.role;pushUndo();
+  chatPush(c,role,'me',t,db.date);
+  var clear=function(){var e2=document.getElementById('of-in');if(e2){e2.value='';growOne(e2);try{e2.focus()}catch(x){}}};
+  if(!orKey()){chatPush(c,role,'them','IRL / OOC mode needs an OpenRouter key. Add one in Settings > AI / Integrations.',db.date);save();render();clear();return}
+  if(ui.orBusy){toast('One question at a time.');return}
+  chatPush(c,role,'them','...',db.date);var o=chatOf(c)[role].slice(-1)[0];ui.orBusy=1;
+  var q=String(t).replace(/\b(irl|ooc)\b\s*[:\-]?/ig,'').trim()||t;
+  orAsk(db,c,role,q,irlSystem(db,c,q),700).then(function(r){o.t=(r.reply||'No answer came back.').slice(0,1500)}).catch(function(e){o.t='(AI unavailable: '+e.message+')'}).then(function(){ui.orBusy=0;save();render()});
+  save();render();clear();
+}
+
+/* ===== V146: AI Database Assistant ===== */
+var DBAI_UNDO=null;
+function dbaiS(){if(!ui.dbai)ui.dbai={log:[],busy:0,confirm:0};return ui.dbai}
+function aiNorm(s){return String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim()}
+function aiCo(name){
+  var n=aiNorm(name);if(!n)return null;var l=db.companies.filter(function(c){return !c.out});
+  return l.filter(function(c){return aiNorm(c.name)===n||aiNorm(c.short)===n})[0]||l.filter(function(c){return aiNorm(c.name).indexOf(n)>=0||n.indexOf(aiNorm(c.short))>=0&&aiNorm(c.short).length>=3})[0]||null;
+}
+function aiPerson(name){
+  var n=aiNorm(name);if(!n)return null;var l=db.people;
+  var hit=l.filter(function(p){return aiNorm(p.name)===n});if(hit.length)return hit.sort(function(a,b){return b.pop-a.pop})[0];
+  hit=l.filter(function(p){return p.gimmick&&aiNorm(p.gimmick)===n});if(hit.length)return hit[0];
+  hit=l.filter(function(p){return aiNorm(p.name).indexOf(n)>=0});if(hit.length===1)return hit[0];
+  var last=n.split(' ').pop();hit=l.filter(function(p){return aiNorm(p.name).split(' ').pop()===last&&n.indexOf(aiNorm(p.name).split(' ')[0])===0});
+  return hit.length===1?hit[0]:null;
+}
+function aiStyle(s){s=aiNorm(s).replace(/ /g,'');for(var i=0;i<STYLES.length;i++){var id=STYLES[i].id,n=STYLES[i].n.toLowerCase().replace(/[^a-z]/g,'');if(s===id||s===n||(s.length>=4&&n.indexOf(s)===0))return id}return ''}
+function aiNum(v,lo,hi){var n=parseFloat(String(v).replace(/[$,%]/g,''));return isFinite(n)?clamp(n,lo,hi):null}
+function aiSaveP(s,p){if(!(p.id in s.people))s.people[p.id]=JSON.stringify(p)}
+function aiSaveC(s,c){if(!(c.id in s.cos))s.cos[c.id]=JSON.stringify(c)}
+function aiSign(p,co,weeks,salary,brandName){
+  var wk=clamp(Math.round(+weeks||48),4,520),sal=+salary;
+  if(!isFinite(sal)||sal<=0)sal=Math.max(30000,marketAnnual(Object.assign({},p,{pop:p.pop||10,push:p.push||10})));
+  p.contract=newContract('written',sal,wk,{});p.co=co.id;p.owner=null;p.everSigned=true;
+  var br=brandName?co.brands.filter(function(b){return aiNorm(b.name)===aiNorm(brandName)})[0]:null;setBrand(co,p,br?br.id:'');
+}
+function aiPersonSet(s,p,set,add,log){
+  var n=0;set=set||{};add=add||{};
+  var one=function(k,v,isAdd){
+    var cur=p[k],x;
+    if(k==='pop'||k==='push'||k==='pot'||k==='morale'||k==='fatigue'){x=aiNum(v,isAdd?-100:0,isAdd?100:100);if(x===null)return;p[k]=clamp(Math.round((isAdd?(cur||0)+x:x)),0,100);n++}
+    else if(STAT_KEYS.indexOf(k)>=0){x=aiNum(v,isAdd?-99:0,99);if(x===null)return;p[k]=clamp(Math.round(isAdd?(cur||0)+x:x),STAT_FLOOR,99);n++}
+    else if(k==='age'){x=aiNum(v,isAdd?-50:16,isAdd?50:70);if(x===null)return;p.age=clamp(Math.round(isAdd?p.age+x:x),16,70);n++}
+    else if(isAdd)return;
+    else if(k==='align'){var a=aiNorm(v);p.align=a.indexOf('heel')>=0?'heel':a.indexOf('tween')>=0?'tweener':'face';n++}
+    else if(k==='sex'){var sx=aiNorm(v);p.sex=(sx==='f'||sx==='female'||sx==='woman'||sx==='women')?'F':'M';n++}
+    else if(k==='style'||k==='style2'){var sid=aiStyle(v);if(sid||(k==='style2'&&!v)){p[k]=sid;n++}}
+    else if(k==='gimmick'){p.gimmick=String(v||'').slice(0,40);n++}
+    else if(k==='injury'){x=aiNum(v,0,200);if(x===null)return;p.injury=Math.round(x);if(!p.injury)p.inj=null;n++}
+    else if(k==='heal'){if(v){p.injury=0;p.inj=null;p.fatigue=0;n++}}
+    else if(k==='retired'){p.retired=!!v;n++}
+    else if(k==='silent'){p.silent=!!v;n++}
+    else if(k==='company'){
+      if(!v||/^(none|free|free agent|released?)$/i.test(String(v))){
+        var held=db.companies.some(function(c){return c.titles.some(function(t){return (t.holders||[]).indexOf(p.id)>=0&&t.status!=='retired'})});
+        if(held){log.push(p.name+' holds a title, so they were not released.');return}
+        p.contract=null;p.co=null;p.brand='';n++;
+      }else{var co=aiCo(v);if(!co){log.push('No company called "'+v+'".');return}aiSign(p,co,set.weeks,set.salary,set.brand);n++}
+    }
+  };
+  Object.keys(set).forEach(function(k){if(k!=='weeks'&&k!=='salary'&&k!=='brand')one(k,set[k],false)});
+  Object.keys(add).forEach(function(k){one(k,add[k],true)});
+  return n;
+}
+function aiFilter(f){
+  f=f||{};var co=f.company?aiCo(f.company):null,mine=f.mine||f.my_roster||f.roster;
+  if(f.company&&!co)return {err:'No company called "'+f.company+'".'};
+  var sid=f.style?aiStyle(f.style):'';
+  var base=db.people;
+  var l=base.filter(function(p){
+    if(p.retired&&!f.retired)return false;
+    if(co&&p.co!==co.id)return false;
+    if(mine&&p.co!==PL(db).id)return false;
+    if(f.free_agents&&!(p.co===null&&!p.dojo))return false;
+    if(f.sex){var sx=aiNorm(f.sex);var F=(sx==='f'||sx==='female'||sx==='women'||sx==='woman');if((p.sex==='F')!==F)return false}
+    if(sid&&p.style!==sid&&p.style2!==sid)return false;
+    if(f.align&&p.align!==(aiNorm(f.align).indexOf('heel')>=0?'heel':aiNorm(f.align).indexOf('tween')>=0?'tweener':'face'))return false;
+    if(f.age_min!==undefined&&p.age<+f.age_min)return false;if(f.age_max!==undefined&&p.age>+f.age_max)return false;
+    if(f.pop_min!==undefined&&p.pop<+f.pop_min)return false;if(f.pop_max!==undefined&&p.pop>+f.pop_max)return false;
+    if(f.injured&&!(p.injury>0))return false;
+    if(f.name_contains&&aiNorm(p.name).indexOf(aiNorm(f.name_contains))<0)return false;
+    return true;
+  });
+  return {list:l};
+}
+function aiCsv(rows,keys){return keys.join(',')+'\n'+rows.map(function(r){return keys.map(function(k){var v=r[k];return v===undefined||v===null?'':'"'+String(v).replace(/"/g,'""')+'"'}).join(',')}).join('\n')}
+function aiAddPerson(s,o,log){
+  var made=0,STAT_BASE=['cons','psy','bas','sel','spd','sta'];
+  var co=o.company?aiCo(o.company):null;if(o.company&&!co)log.push('No company called "'+o.company+'", added as free agent.');
+  var st=o.stats||{},named=o.name&&(!o.count||+o.count<=1);
+  if(named){
+    var ex=aiPerson(o.name);if(ex&&aiNorm(ex.name)===aiNorm(o.name))aiSaveP(s,ex);
+    var row={name:String(o.name).slice(0,60),gimmick:o.gimmick,sex:o.sex,align:o.align,age:o.age,style:o.style,style2:o.style2,pop:o.pop,push:o.push,pot:o.pot,morale:o.morale};
+    Object.keys(st).forEach(function(k){if(STAT_KEYS.indexOf(k)>=0)row[k]=clamp(Math.round(+st[k]||0),STAT_FLOOR,99)});
+    if(o.base!==undefined&&!STAT_BASE.some(function(k){return row[k]!==undefined}))row.inring=clamp(Math.round(+o.base||50),20,95);
+    if(co){row.company=co.name;row.weeks=o.weeks||48;if(o.salary)row.salary=o.salary;if(o.brand)row.brand=o.brand}
+    var keys=Object.keys(row).filter(function(k){return row[k]!==undefined&&row[k]!==''&&row[k]!==null});
+    var res=importPeopleCSV(db,aiCsv([row],keys));
+    res.errors.forEach(function(e){log.push(e)});
+    var p=aiPerson(o.name);
+    if(p){if(res.added){s.added.push(p.id);made++}
+      if(!p.finishers||!p.finishers.length)p.finishers=genFinishers(p);if(!p.wt)p.wt=estWeight(p);
+      aiPersonSet(s,p,{},{},log)}
+    return made;
+  }
+  var cnt=clamp(Math.round(+o.count||1),1,40),names=(o.names||[]).slice();
+  for(var i=0;i<cnt;i++){
+    var go={sex:o.sex?(/^(f|female|w)/i.test(o.sex)?'F':'M'):undefined,style:o.style?aiStyle(o.style)||undefined:undefined,base:o.base!==undefined?clamp(+o.base,25,95):undefined};
+    var a0=o.age_min!==undefined?+o.age_min:18,a1=o.age_max!==undefined?+o.age_max:(o.age!==undefined?+o.age:35);
+    go.age=o.age!==undefined?+o.age:Math.round(rnd(Math.min(a0,a1),Math.max(a0,a1)));
+    var p=genPerson(db,go);
+    if(names[i])p.name=String(names[i]).slice(0,60);
+    db.people.push(p);s.added.push(p.id);made++;
+    var set={};['gimmick','align','pop','push','pot','morale'].forEach(function(k){if(o[k]!==undefined)set[k]=o[k]});
+    Object.keys(st).forEach(function(k){set[k]=st[k]});
+    aiPersonSet(s,p,set,{},log);
+    if(co)aiSign(p,co,o.weeks,o.salary,o.brand);
+  }
+  return made;
+}
+function aiRun(ops){
+  var s={people:{},cos:{},titles:{},added:[],dbref:db,reset:null},log=[],n=0,wantReset=false;
+  (Array.isArray(ops)?ops:[]).slice(0,60).forEach(function(o){
+    if(!o||typeof o!=='object')return;
+    try{
+      if(o.op==='reset_stock'){wantReset=true;return}
+      if(o.op==='add_person'){var m=aiAddPerson(s,o,log);if(m){n+=m;log.push('Added '+m+' '+(m===1?'person':'people')+'.')}}
+      else if(o.op==='edit_person'){var p=aiPerson(o.target&&(o.target.name||o.target)||o.name);if(!p){log.push('Could not find "'+(o.target&&(o.target.name||o.target)||o.name)+'".');return}aiSaveP(s,p);var k=aiPersonSet(s,p,o.set,o.add,log);n+=k?1:0;log.push(p.name+': '+k+' change'+(k===1?'':'s')+'.')}
+      else if(o.op==='bulk_edit'){
+        var f=aiFilter(o.filter);if(f.err){log.push(f.err);return}
+        if(f.list.length>3000){log.push('That matches '+f.list.length+' people, too many for one edit.');return}
+        var c=0;f.list.forEach(function(p){aiSaveP(s,p);if(aiPersonSet(s,p,o.set,o.add,log))c++});n+=c;log.push('Edited '+c+' people.');
+      }else if(o.op==='edit_company'){
+        var co=aiCo(o.target&&(o.target.name||o.target)||o.name||o.company);if(!co){log.push('Could not find that company.');return}
+        aiSaveC(s,co);var set=o.set||{},add=o.add||{},ch=0,x;
+        if(set.cash!==undefined&&(x=aiNum(set.cash,-1e12,CASH_MAX))!==null){co.cash=x;ch++}
+        if(add.cash!==undefined&&(x=aiNum(add.cash,-1e12,CASH_MAX))!==null){co.cash=clamp(co.cash+x,-1e12,CASH_MAX);ch++}
+        if(set.pop!==undefined&&(x=aiNum(set.pop,0,100))!==null){co.pop=Math.round(x);ch++}
+        if(add.pop!==undefined&&(x=aiNum(add.pop,-100,100))!==null){co.pop=clamp(Math.round(co.pop+x),0,100);ch++}
+        if(set.style!==undefined){var cs=CO_STYLES.filter(function(q){return q.id===aiNorm(set.style).replace(/ /g,'')||aiNorm(q.n)===aiNorm(set.style)})[0];if(cs){co.style=cs.id;ch++}}
+        if(set.tv_fee!==undefined&&(x=aiNum(set.tv_fee,0,1e9))!==null){co.brands.forEach(function(b){if(b.tv&&(!set.brand||aiNorm(b.name)===aiNorm(set.brand))){b.tv.fee=Math.round(x);ch++}})}
+        n+=ch?1:0;log.push(co.name+': '+ch+' change'+(ch===1?'':'s')+'.');
+      }else if(o.op==='edit_title'){
+        var tn=aiNorm(o.target&&(o.target.name||o.target)||o.name),tt=null,tc=null;
+        db.companies.forEach(function(c){c.titles.forEach(function(t){if(!tt&&t.status!=='retired'&&(aiNorm(t.name)===tn||aiNorm(t.name).indexOf(tn)>=0)){tt=t;tc=c}})});
+        if(!tt){log.push('Could not find that title.');return}
+        aiSaveC(s,tc);var cs2=0,y;
+        if(o.set&&o.set.prestige!==undefined&&(y=aiNum(o.set.prestige,0,100))!==null){tt.prestige=Math.round(y);cs2++}
+        if(o.set&&o.set.holder){var hp=aiPerson(o.set.holder);if(hp&&tt.type==='single'){aiSaveP(s,hp);tt.holders=[hp.id];tt.since=db.date;tt.defenses=0;cs2++}else log.push('Holder not changed (needs a single worker who exists).')}
+        n+=cs2?1:0;log.push(tt.name+': '+cs2+' change'+(cs2===1?'':'s')+'.');
+      }else log.push('Skipped an unknown action.');
+    }catch(e){log.push('One action failed: '+e.message)}
+  });
+  if(n){reindex(db);db.cheated=true;DBAI_UNDO=s}
+  return {n:n,log:log,reset:wantReset};
+}
+function aiUndo(){
+  var s=DBAI_UNDO;if(!s)return 'Nothing to undo.';
+  if(s.reset){if(db!==s.reset.nu)return 'The database changed since that reset, so I cannot undo it here.';db=s.reset.old;reindex(db);DBAI_UNDO=null;return 'Reset undone. Your previous database is back.'}
+  if(s.dbref!==db)return 'The database changed since that edit, so I cannot undo it here.';
+  var ids={};s.added.forEach(function(id){ids[id]=1});
+  db.people=db.people.filter(function(p){return !ids[p.id]});
+  Object.keys(s.people).forEach(function(id){var old=JSON.parse(s.people[id]),i=db.people.findIndex(function(p){return p.id===id});if(i>=0)db.people[i]=old;else db.people.push(old)});
+  Object.keys(s.cos).forEach(function(id){var old=JSON.parse(s.cos[id]),i=db.companies.findIndex(function(c){return c.id===id});if(i>=0)db.companies[i]=old});
+  reindex(db);DBAI_UNDO=null;return 'Undid the last AI edit.';
+}
+function aiReset(){
+  var old=db,nu=normalizeDB(mkWorld()),keep=Object.assign({},old.settings);delete keep.rivals;delete keep.workers;
+  nu.settings=Object.assign(nu.settings||{},keep);nu.cheated=true;db=nu;reindex(db);ui.co='me';
+  DBAI_UNDO={reset:{old:old,nu:nu},dbref:nu,people:{},cos:{},added:[]};
+}
+/* local commands for when there is no key */
+function aiMoney(t){var m=/\$?\s*([\d][\d,]*\.?\d*)\s*(k|m|mil|million|b|bil|billion|thousand)?\b/i.exec(t);if(!m)return null;var v=parseFloat(m[1].replace(/,/g,''));var u=(m[2]||'').toLowerCase();v*=(u==='k'||u==='thousand')?1e3:(u==='m'||u==='mil'||u==='million')?1e6:(u==='b'||u==='bil'||u==='billion')?1e9:1;return v}
+function aiLocal(text){
+  var t=String(text).toLowerCase();
+  if(/\breset\b.*\b(stock|default|database|db)\b|\bstock\b.*\breset\b|reset to stock/.test(t))return {ops:[{op:'reset_stock'}],summary:'Reset the database to stock.'};
+  if(/\bheal\b/.test(t)){var mine=/\b(my|our|roster|mine)\b/.test(t);return {ops:[{op:'bulk_edit',filter:mine?{mine:true,injured:true}:{injured:true},set:{heal:true}}],summary:'Healed everyone who was hurt'+(mine?' on your roster':'')+'.'}}
+  var g=/\b(give|add|set)\b/.test(t)&&/\bcash\b|\$|\bmoney\b/.test(t),v=g?aiMoney(t):null;
+  if(g&&v!==null){
+    var co=null;db.companies.forEach(function(c){if(!co&&!c.out&&aiNorm(t).indexOf(aiNorm(c.short))>=0&&aiNorm(c.short).length>=3)co=c;if(!co&&!c.out&&aiNorm(t).indexOf(aiNorm(c.name))>=0)co=c});
+    var tn=co?co.name:PL(db).name,isSet=/\bset\b/.test(t);
+    var o={op:'edit_company',target:tn};o[isSet?'set':'add']={cash:v};
+    return {ops:[o],summary:(isSet?'Set ':'Gave ')+tn+' '+(isSet?'cash to ':'')+money(v)+'.'};
+  }
+  return null;
+}
+/* the model path */
+function aiSystem(){
+  var cos=db.companies.filter(function(c){return !c.out}).slice(0,40).map(function(c){return c.name+' ('+c.short+')'}).join(', ');
+  var ti=[];db.companies.forEach(function(c){c.titles.forEach(function(t){if(t.status!=='retired'&&ti.length<40)ti.push(t.name)})});
+  return 'You edit a wrestling management game database from plain-English requests. Return ONLY JSON: {"summary":"one short sentence of what you did","ops":[...]}.\nOps (use names, never ids; at most 40 ops):\n{"op":"add_person","name":"Real or custom name","age":31,"sex":"M|F","style":"<style>","style2":"","gimmick":"","align":"face|heel|tweener","pop":0-100,"push":0-100,"pot":0-100,"base":30-95 (overall skill from real-world reputation),"stats":{"aer":92},"company":"<company or omit for free agent>","brand":"","weeks":48,"salary":0} . For several unnamed people use {"op":"add_person","count":8,"sex":"F","age_min":18,"age_max":24,"base":40,"names":[optional list]}\n{"op":"edit_person","target":"Name","set":{...},"add":{...}}\n{"op":"bulk_edit","filter":{"company":"","mine":true,"free_agents":true,"sex":"","style":"","align":"","age_min":0,"age_max":0,"pop_min":0,"pop_max":0,"injured":true,"name_contains":""},"set":{...},"add":{...}}\n{"op":"edit_company","target":"Company","set":{"cash":0,"pop":0,"style":"<house style id>","tv_fee":0},"add":{"cash":0}}\n{"op":"edit_title","target":"Title","set":{"prestige":0,"holder":"Name"}}\n{"op":"reset_stock"}  (only if they clearly ask to wipe or reset the database)\nPerson fields in set/add: pop push pot morale fatigue age align sex style style2 gimmick injury heal(true) retired silent company ("free agent" releases) plus stats: '+STAT_KEYS.join(' ')+'.\nStyles: '+STYLES.map(function(s){return s.id}).join(', ')+'. House styles: '+CO_STYLES.map(function(s){return s.id}).join(', ')+'.\nThe player\'s company is '+PL(db).name+' ("mine":true means their roster). Companies: '+cos+'.\nTitles: '+ti.join(', ')+'.\nIf the request is unclear or impossible, return {"summary":"what is unclear","ops":[]}.';
+}
+function aiFinish(text,res,sum){
+  var S=dbaiS();
+  if(res.reset){S.confirm=1;S.log.push({w:'ai',t:(sum?sum+' ':'')+'Resetting wipes this database back to stock. Confirm below.'});return}
+  S.log.push({w:'ai',t:(res.n?(sum||'Done.')+' ':'Nothing changed. ')+res.log.slice(0,6).join(' ')});
+}
+/* UI */
+function dbaiPanel(){
+  var S=dbaiS(),has=!!orKey();
+  var log=S.log.slice(-6).map(function(x){return '<div class="msg" style="margin:4px 0;'+(x.w==='me'?'border-left:3px solid var(--gold,#d4af37)':'')+'"><div class="label">'+(x.w==='me'?'You':'Assistant')+'</div><div style="white-space:pre-line">'+esc(x.t)+'</div></div>'}).join('');
+  return '<div class="panel" data-noaf="1"><h3>AI Database Assistant</h3><div class="mute small">'+(has?'Plain English edits to this database. Try: "Add Will Ospreay, 31, highflyer, 85 pop, free agent", "Create 8 indie women under 25", "Heal everyone on my roster", "Give SCW $50M". Powered by '+esc(orModel())+'.':'No OpenRouter key saved, so only basic commands work: "reset to stock", "heal all", "give cash $5M". Add a key in Settings > AI / Integrations for full natural language.')+'</div>'+
+  (log?'<div style="margin:8px 0;max-height:34vh;overflow:auto">'+log+'</div>':'')+
+  (S.confirm?'<div class="msg" style="margin:8px 0"><b>Reset the whole database to stock?</b><div class="mute small">Everything in this database is replaced. You can undo it right after.</div><div class="row" style="margin-top:6px">'+btn('dbaiResetGo','Yes, reset to stock','','primary danger')+btn('dbaiResetNo','Cancel','','sm')+'</div></div>':'')+
+  '<div class="row" style="margin-top:8px"><textarea rows="1" class="autogrow" id="dbai-in" maxlength="800" placeholder="Tell the assistant what to change" data-enter="dbaiSend" data-keep="dbai-in" style="flex:1;min-width:0"></textarea>'+btn('dbaiSend','Send','','primary',!!S.busy)+'</div>'+
+  '<div class="row" style="margin-top:6px">'+btn('dbaiUndo','Undo Last AI Edit','','sm',!DBAI_UNDO)+'</div></div>';
+}
+A.dbaiSend=function(){
+  var el=document.getElementById('dbai-in'),S=dbaiS();if(!el||S.busy)return;var t=el.value.trim();if(!t)return;
+  S.log.push({w:'me',t:t});S.confirm=0;el.value='';
+  var local=aiLocal(t),run=function(plan){
+    var res=aiRun(plan.ops||[]);aiFinish(t,res,plan.summary);S.busy=0;
+    after(res.n?'Applied.':'');
+  };
+  if(!orKey()){
+    if(local){run(local)}
+    else{S.log.push({w:'ai',t:'I can only do basic commands without a key: "reset to stock", "heal all", "give cash $5M". Save an OpenRouter key in Settings > AI / Integrations for full natural language editing.'});render()}
+    return;
+  }
+  S.busy=1;S.log.push({w:'ai',t:'Working...'});render();
+  orAsk(db,null,'bk',t,aiSystem(),1800,0.2).then(function(r){
+    S.log.pop();var raw=r.raw||{};
+    if(!Array.isArray(raw.ops)){S.log.push({w:'ai',t:(r.reply||raw.summary||'I could not turn that into database changes.')});S.busy=0;render();return}
+    run({ops:raw.ops,summary:raw.summary});
+  }).catch(function(e){
+    S.log.pop();S.busy=0;
+    if(local){S.log.push({w:'ai',t:'AI unavailable ('+e.message+'). Using the basic command instead.'});run(local)}
+    else{S.log.push({w:'ai',t:'AI unavailable: '+e.message}); render()}
+  });
+};
+A.dbaiResetGo=function(){var S=dbaiS();S.confirm=0;aiReset();S.log.push({w:'ai',t:'Database reset to stock. Undo Last AI Edit brings the old one back.'});after('Reset to stock.')};
+A.dbaiResetNo=function(){var S=dbaiS();S.confirm=0;S.log.push({w:'ai',t:'Reset cancelled.'});render()};
+A.dbaiUndo=function(){var S=dbaiS(),m=aiUndo();S.log.push({w:'ai',t:m});after(m)};
 
 /* ---- calendar button + month view ---- */
 A.calOpen=function(){ui.lastPage=ui.tab;ui.tab='cal';ui.tab2=ui.tab2||{};ui.tab2.cal='month';render();window.scrollTo&&window.scrollTo(0,0)};
@@ -15751,7 +16029,7 @@ function pitchHTML(c,spec){
   if(errs.length)h+='<div class="msg" style="margin:6px 0"><span class="pill bad">Problems</span> '+errs.slice(0,3).map(esc).join(' · ')+'</div>';
   var log=(ui.pitch&&ui.pitch.log)||[];
   if(log.length)h+='<div style="margin:6px 0">'+log.slice(-4).map(function(x){return '<div class="msg" style="margin:3px 0"><div class="label">'+(x.w==='me'?'Your notes':'Booker')+'</div>'+esc(x.t)+'</div>'}).join('')+'</div>';
-  h+='<div class="row" style="margin-top:8px"><input type="text" id="pitch-in" maxlength="200" placeholder="Notes: more time to match 2, protect Mike Ace" data-enter="pitchNotes" style="flex:1;min-width:0">'+btn('pitchNotes','Give Notes','')+'</div>';
+  h+='<div class="row" style="margin-top:8px"><textarea rows="1" class="autogrow" id="pitch-in" maxlength="300" placeholder="Notes: more time to match 2, protect Mike Ace" data-enter="pitchNotes" style="flex:1;min-width:0"></textarea>'+btn('pitchNotes','Give Notes','')+'</div>';
   h+='<div class="row" style="margin-top:8px;flex-wrap:wrap">'+btn('pitchGo','Approve &amp; Run','','',errs.length)+btn('pitchEdit','Edit Card','')+btn('pitchSkip','Skip show','','sm')+'</div>';
   return h;
 }
@@ -16522,6 +16800,7 @@ VIEWS.home=function(){
   var h='<div class="hero"><div><div class="label">'+fmtDate(weekStart(db.date))+' · '+weekLabel()+'</div><div class="when">'+(specs.length?(open.length?open.length+' show'+(open.length>1?'s':'')+' to run this week':'This week\'s shows are done'):'No shows this week')+'</div>'+
    '<div class="mute small" style="margin-top:6px">'+(specs.map(function(s){var st=showStatus(c,s);return DOW[s.day]+' '+esc(showName(s))+(s.kind==='event'?' ★':'')+(st==='done'?' ✓':st==='skipped'?' (skipped)':'')}).join(' · ')||'Add a brand in the Booker tab.')+'</div></div>'+
    '<div class="row">'+(open.length?btn('autoAll','Auto-book &amp; run all','','')+btn('tab','Open the card','data-v="book"',''):'')+btn('nextWeek','Advance week →','','primary big')+'</div></div>';
+  h+=officeBody();
   /* needs attention */
   var todo=[],ros=rosterOf(db,c).filter(function(p){return !p.nw});
   var hurt=ros.filter(function(p){return p.injury>0}).length,exp=ros.filter(function(p){return p.contract&&p.contract.weeks<=8}).length;
@@ -17490,7 +17769,7 @@ ED.coaches={
 ED_ENTS.splice(Math.max(0,ED_ENTS.map(function(x){return x[0]}).indexOf('world')),0,['coaches','Coaches']);
 function dbEditor(){
   var s=edState(),e=s.e;
-  var h=workbookPanel()+edGlobalPanel()+'<div class="panel"><h3>Database editor</h3><div class="mute small">Edit, add and delete nearly anything: wrestlers and staff, stats, finishers, contracts, companies, brands, TV deals, titles, venues, outlets, agents and media. It works any time, even after a game over. No safety net beyond Undo, so be deliberate.</div><div style="margin-top:8px">'+
+  var h=dbaiPanel()+workbookPanel()+edGlobalPanel()+'<div class="panel"><h3>Database editor</h3><div class="mute small">Edit, add and delete nearly anything: wrestlers and staff, stats, finishers, contracts, companies, brands, TV deals, titles, venues, outlets, agents and media. It works any time, even after a game over. No safety net beyond Undo, so be deliberate.</div><div style="margin-top:8px">'+
     '<div class="label">Workers</div><div class="chips">'+WK_TABS.map(function(x){var wk=x[2]||x[0],on=WK_KEYS.indexOf(e)>=0&&(s.wk||'all')===wk;return '<button class="tag'+(on?' on':'')+'" data-a="edEnt" data-v="'+x[0]+'" data-f="'+(x[2]||'')+'" data-k="'+wk+'" aria-pressed="'+on+'">'+x[1]+'</button>'}).join('')+'</div>'+
     '<div class="label" style="margin-top:8px">Everything else</div><div class="chips">'+ED_ENTS.filter(function(x){return WK_KEYS.indexOf(x[0])<0}).map(function(x){return '<button class="tag'+(x[0]===e?' on':'')+'" data-a="edEnt" data-v="'+x[0]+'" data-f="" aria-pressed="'+(x[0]===e)+'">'+x[1]+'</button>'}).join('')+'</div></div></div>';
   var sel=s.id?edFind(e,s.id):null;
